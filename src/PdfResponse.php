@@ -124,20 +124,19 @@ class PdfResponse implements \Nette\Application\Response
 	public string $pageFormat = 'A4';
 
 	/**
-	 * Margins in this order:
-	 * <ol>
-	 *   <li>top
-	 *   <li>right
-	 *   <li>bottom
-	 *   <li>left
-	 *   <li>header
-	 *   <li>footer
-	 * </ol>
+	 * Margins in millimeters, keyed by side: top, right, bottom, left, header, footer.
+	 * Values must be >= 0; zero values may cause issues in some PDF viewers.
 	 *
-	 * Please use values <b>higer than 0</b>. In some PDF browser zero values may
-	 * cause problems!
+	 * @var array{top:int,right:int,bottom:int,left:int,header:int,footer:int}
 	 */
-	public string $pageMargins = '16,15,16,15,9,9';
+	public array $pageMargins = [
+		'top' => 16,
+		'right' => 15,
+		'bottom' => 16,
+		'left' => 15,
+		'header' => 9,
+		'footer' => 9,
+	];
 
 	/**
 	 * Author of the document
@@ -244,35 +243,25 @@ class PdfResponse implements \Nette\Application\Response
 	public string $outputDestination = self::OUTPUT_INLINE;
 
 	/**
-	 * Getts margins as <b>array</b>
-	 * @return array
+	 * Returns validated margins keyed by side. Throws if any side is missing or negative.
+	 *
+	 * @return array{top:int,right:int,bottom:int,left:int,header:int,footer:int}
 	 */
-	function getMargins(): array
+	public function getMargins(): array
 	{
-		$margins = explode(',', $this->pageMargins);
-		if (count($margins) !== 6) {
-			throw new \Nette\InvalidStateException('You must specify all margins! For example: 16,15,16,15,9,9');
+		$expected = ['top', 'right', 'bottom', 'left', 'header', 'footer'];
+		$missing = array_diff($expected, array_keys($this->pageMargins));
+		if ($missing !== []) {
+			throw new \Nette\InvalidStateException('Missing pageMargins side(s): ' . implode(', ', $missing));
 		}
 
-		$dictionary = array(
-			0 => 'top',
-			1 => 'right',
-			2 => 'bottom',
-			3 => 'left',
-			4 => 'header',
-			5 => 'footer'
-		);
-
-		$marginsOut = array();
-		foreach ($margins as $key => $val) {
-			$val = (int)$val;
-			if ($val < 0) {
-				throw new \Nette\InvalidArgumentException('Margin must not be negative number!');
+		foreach ($this->pageMargins as $side => $value) {
+			if ($value < 0) {
+				throw new \Nette\InvalidArgumentException("Margin '{$side}' must not be negative.");
 			}
-			$marginsOut[$dictionary[$key]] = $val;
 		}
 
-		return $marginsOut;
+		return $this->pageMargins;
 	}
 
 	public function __construct(string|Template $source)
