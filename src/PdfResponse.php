@@ -62,10 +62,10 @@ class PdfResponse implements \Nette\Application\Response
 
 
 	/**
-	 * Callback - create mPDF object
-	 * @var callable
+	 * Factory for the underlying Mpdf instance. Replaced if you need custom Mpdf config.
+	 * Defaults to {@see self::createMPDF()} (wrapped via Closure::fromCallable in the constructor).
 	 */
-	public $createMPDF = null;
+	public ?\Closure $createMPDF = null;
 
 
 	/**
@@ -180,16 +180,14 @@ class PdfResponse implements \Nette\Application\Response
 	public ?string $tempDir = null;
 
 	/**
-	 * Before document output starts
-	 * @var callable|null
+	 * Hook fired right before mPDF Output() is called.
 	 */
-	public $onBeforeComplete = null;
+	public ?\Closure $onBeforeComplete = null;
 
 	/**
-	 * Before document write starts
-	 * @var callable|null
+	 * Hook fired right before mPDF WriteHTML() is called.
 	 */
-	public $onBeforeWrite = null;
+	public ?\Closure $onBeforeWrite = null;
 
 	/**
 	 * Multi-language document?
@@ -266,7 +264,7 @@ class PdfResponse implements \Nette\Application\Response
 
 	public function __construct(string|Template $source)
 	{
-		$this->createMPDF = [$this, 'createMPDF'];
+		$this->createMPDF = \Closure::fromCallable([$this, 'createMPDF']);
 		$this->source = $source;
 	}
 
@@ -333,7 +331,7 @@ class PdfResponse implements \Nette\Application\Response
 			$mode = 0; // Parse all: HTML + CSS
 		}
 
-		Utils::tryCall($this->onBeforeWrite);
+		($this->onBeforeWrite)?->__invoke();
 
 		// Add content
 		$mpdf->WriteHTML(
@@ -349,7 +347,7 @@ class PdfResponse implements \Nette\Application\Response
 			);
 		}
 
-		Utils::tryCall($this->onBeforeComplete);
+		($this->onBeforeComplete)?->__invoke();
 
 		if (!$this->outputName) {
 			$this->outputName = Strings::webalize($this->documentTitle) . '.pdf';
@@ -362,15 +360,14 @@ class PdfResponse implements \Nette\Application\Response
 	public function getMPDF(): Mpdf
 	{
 		if (!$this->mPDF instanceof Mpdf) {
-			if (\is_callable($this->createMPDF)) {
-				$factory = $this->createMPDF;
-				$mpdf = $factory();
-				if (!$mpdf instanceof Mpdf) {
-					throw new \Nette\InvalidStateException('Callback function createMPDF must return mPDF object!');
-				}
-				$this->mPDF = $mpdf;
-			} else
-				throw new \Nette\InvalidStateException('Callback createMPDF is not callable!');
+			if ($this->createMPDF === null) {
+				throw new \Nette\InvalidStateException('createMPDF closure is not set!');
+			}
+			$mpdf = ($this->createMPDF)();
+			if (!$mpdf instanceof Mpdf) {
+				throw new \Nette\InvalidStateException('createMPDF closure must return an Mpdf instance!');
+			}
+			$this->mPDF = $mpdf;
 		}
 		return $this->mPDF;
 	}
