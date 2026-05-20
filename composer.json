@@ -16,6 +16,10 @@
 		"rector": "vendor/bin/rector process --dry-run --ansi",
 		"rector-fix": "vendor/bin/rector process --ansi"
 	},
+	"support": {
+		"issues": "https://github.com/Ciki/PdfResponse/issues",
+		"source": "https://github.com/Ciki/PdfResponse"
+	},
 	"authors": [
 		{
 			"name": "Jan Kuchař",

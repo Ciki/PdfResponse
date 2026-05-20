@@ -100,4 +100,4 @@ shape, dropped `SmartObject` magic, etc.).
 
 ## License
 
-LGPL-2.0-or-later. See [LICENSE](LICENSE).
+LGPL-3.0-or-later. See [LICENSE](LICENSE).
