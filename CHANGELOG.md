@@ -23,11 +23,14 @@ This is the first stable release. It modernizes the codebase for PHP 8.3+, drops
 ### Changed (BC)
 
 - **Minimum PHP version is now 8.3** (was 7.1 in v0.6.4).
-- `$source` constructor argument is typed `string | Nette\Bridges\ApplicationLatte\Template`.
+- `$source` constructor argument is typed `string | Nette\Application\UI\Template`.
   Anything else fails at construction time with a `TypeError`.
-  Template parameters `$pdfResponse` and `$mPDF` are now passed via `renderToString()`
-  instead of dynamic property assignment - templates that referenced `{$pdfResponse}` and
-  `{$mPDF}` continue to work unchanged.
+  For the `Nette\Bridges\ApplicationLatte\Template` concrete class (the one you get from
+  `$presenter->createTemplate()`), `$pdfResponse` and `$mPDF` are passed via
+  `renderToString(null, [...])` - templates that referenced `{$pdfResponse}` and `{$mPDF}`
+  continue to work unchanged. For any other `Template` impl we just call `render()` and
+  capture the output (no automatic parameter injection - the interface doesn't promise a
+  param-passing API).
 - `$pageMargins` is now an assoc array keyed by side, not a comma-separated string:
   ```php
   // before (v0.6.4)
@@ -45,6 +48,8 @@ This is the first stable release. It modernizes the codebase for PHP 8.3+, drops
 
 ### Added
 
+- `toString(): string` method - returns the rendered PDF as a binary string, bypassing
+  `$outputDestination`. Useful for emailing the PDF, persisting it to storage, etc.
 - Native `DOMDocument`-based HTML cleanup path with documented `$domOptions` keys:
   - `removeStyles` (bool, default `true`) - strip `<style>` elements
   - `enforceEncoding` (?string, default `null` ⇒ UTF-8)

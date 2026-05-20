@@ -18,7 +18,8 @@ namespace PdfResponse;
 
 use DOMDocument;
 use Mpdf\Mpdf;
-use Nette\Bridges\ApplicationLatte\Template;
+use Nette\Application\UI\Template;
+use Nette\Bridges\ApplicationLatte\Template as LatteTemplate;
 use Nette\Http\IRequest;
 use Nette\Http\IResponse;
 use Nette\Utils\Strings;
@@ -275,8 +276,13 @@ class PdfResponse implements \Nette\Application\Response
 	}
 
 	/**
-	 * Returns rendered HTML for the configured source. Nette templates are rendered with
-	 * `$pdfResponse` and `$mPDF` provided as template parameters.
+	 * Returns rendered HTML for the configured source.
+	 *
+	 * For {@see LatteTemplate} (the Nette+Latte bridge class) we use the documented
+	 * `renderToString(null, [...])` API to inject `$pdfResponse` and `$mPDF` as template
+	 * parameters. For other {@see Template} implementations we just call `render()` and
+	 * capture the output - no automatic parameter injection (the interface doesn't promise
+	 * any parameter-passing API).
 	 */
 	public function getSource(): string
 	{
@@ -284,10 +290,16 @@ class PdfResponse implements \Nette\Application\Response
 			return $this->source;
 		}
 
-		return $this->source->renderToString(null, [
-			'pdfResponse' => $this,
-			'mPDF' => $this->getMPDF(),
-		]);
+		if ($this->source instanceof LatteTemplate) {
+			return $this->source->renderToString(null, [
+				'pdfResponse' => $this,
+				'mPDF' => $this->getMPDF(),
+			]);
+		}
+
+		ob_start();
+		$this->source->render();
+		return (string) ob_get_clean();
 	}
 
 	public function getRawSource(): string|Template
@@ -298,9 +310,33 @@ class PdfResponse implements \Nette\Application\Response
 
 
 	/**
-	 * Sends response to output.
+	 * Sends the response to the current output (per `$outputDestination`).
+	 * Called automatically by Nette when this is returned from a presenter.
 	 */
 	public function send(IRequest $httpRequest, IResponse $httpResponse): void
+	{
+		$mpdf = $this->buildMpdfDocument();
+		if (!$this->outputName) {
+			$this->outputName = Strings::webalize($this->documentTitle) . '.pdf';
+		}
+		$mpdf->Output($this->outputName, $this->outputDestination);
+	}
+
+	/**
+	 * Returns the rendered PDF as a binary string, bypassing `$outputDestination`.
+	 * Useful when you want to email the PDF, persist it to storage, etc.
+	 */
+	public function toString(): string
+	{
+		return (string) $this->buildMpdfDocument()->Output('', self::OUTPUT_STRING);
+	}
+
+	/**
+	 * Resolves the source, configures mPDF metadata + display, runs the optional
+	 * pre-write/pre-complete hooks, writes HTML and optional extra styles.
+	 * Returns the fully-prepared Mpdf instance ready for Output().
+	 */
+	private function buildMpdfDocument(): Mpdf
 	{
 		// Throws exception if sources can not be processed
 		$html = $this->getSource();
@@ -335,26 +371,16 @@ class PdfResponse implements \Nette\Application\Response
 		($this->onBeforeWrite)?->__invoke();
 
 		// Add content
-		$mpdf->WriteHTML(
-			$html,
-			$mode
-		);
+		$mpdf->WriteHTML($html, $mode);
 
 		// Add styles
 		if (!empty($this->styles)) {
-			$mpdf->WriteHTML(
-				$this->styles,
-				1
-			);
+			$mpdf->WriteHTML($this->styles, 1);
 		}
 
 		($this->onBeforeComplete)?->__invoke();
 
-		if (!$this->outputName) {
-			$this->outputName = Strings::webalize($this->documentTitle) . '.pdf';
-		}
-
-		$mpdf->Output($this->outputName, $this->outputDestination);
+		return $mpdf;
 	}
 
 

@@ -40,7 +40,17 @@ return $response;
 ```
 
 Inside the Latte template you can use `{$pdfResponse}` (the response instance) and
-`{$mPDF}` (the underlying mPDF instance) - both are injected automatically.
+`{$mPDF}` (the underlying mPDF instance) - both are injected automatically when the
+template is a `Nette\Bridges\ApplicationLatte\Template` (the bridge class returned by
+`$presenter->createTemplate()`). Custom `Template` impls are also accepted, but no
+parameters are auto-injected.
+
+### As a string (email attachments, storage, ...)
+
+```php
+$pdfData = (new \PdfResponse\PdfResponse($html))->toString();
+file_put_contents('/path/to/invoice.pdf', $pdfData);
+```
 
 ## Configuration
 
