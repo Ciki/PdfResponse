@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * PdfResponse
  * -----------
@@ -18,16 +20,10 @@ use DOMDocument;
 use Mpdf\Mpdf;
 use Nette\Http\IRequest;
 use Nette\Http\IResponse;
-use Nette\SmartObject;
 use Nette\Utils\Strings;
 
-/**
- * @property-read Mpdf $mPDF
- */
 class PdfResponse implements \Nette\Application\Response
 {
-	use SmartObject;
-
 	/**
 	 * Source data
 	 */
