@@ -14,12 +14,12 @@
 
 namespace PdfResponse;
 
+use DOMDocument;
 use Mpdf\Mpdf;
 use Nette\Http\IRequest;
 use Nette\Http\IResponse;
 use Nette\SmartObject;
 use Nette\Utils\Strings;
-use PHPHtmlParser\Dom;
 
 /**
  * @property-read Mpdf $mPDF
@@ -33,6 +33,13 @@ class PdfResponse implements \Nette\Application\Response
 	 */
 	private mixed $source;
 
+	/**
+	 * Reserved for forward-compatibility with the upcoming DOMDocument-cleanup options.
+	 * Currently no keys are recognized; the array is accepted as-is for BC with the
+	 * previous paquettg-based code path that passed it to PHPHtmlParser\Dom::setOptions().
+	 *
+	 * @var array<string,mixed>
+	 */
 	public array $domOptions = [];
 
 
@@ -331,14 +338,8 @@ class PdfResponse implements \Nette\Application\Response
 			$html = preg_replace('/mpdf-->/i', '', $html);
 			$html = preg_replace('/<\!\-\-.*?\-\->/s', '', $html);
 
-			// deletes all <style> tags
-
-			$parsedHtml =  $this->createDom();
-			$parsedHtml->loadStr($html);
-			foreach ($parsedHtml->find('style') as $el) {
-				$el->outertext = '';
-			}
-			$html = $parsedHtml->__toString();
+			// deletes all <style> tags (and other configured cleanups) via native DOMDocument
+			$html = $this->cleanupHtmlForMpdf($html);
 
 			$mode = 2; // If <body> tags are found, all html outside these tags are discarded, and the rest is parsed as content for the document. If no <body> tags are found, all html is parsed as content. Prior to mPDF 4.2 the default CSS was not parsed when using mode #2
 		} else {
@@ -416,21 +417,34 @@ class PdfResponse implements \Nette\Application\Response
 
 
 	/**
-	 * Creates and returns Dom object
+	 * Strip <style> elements from an HTML fragment via native PHP DOMDocument.
+	 *
+	 * Migrated from paquettg/php-html-parser - the previous code path parsed via
+	 * `(new Dom())->setOptions($domOptions)->loadStr($html)` and then ran a `find('style')` loop
+	 * to remove <style> elements. This method preserves the exact same net effect using only
+	 * built-in PHP (no third-party dep).
+	 *
+	 * Removing the paquettg dep also unpins guzzlehttp/psr7 to ^2.7+ for downstream consumers
+	 * (paquettg/php-html-parser required psr7 ^1.6, which triggers PHP 8.5 implicit-nullable-param
+	 * deprecation warnings on class load).
 	 */
-	private function createDom(): Dom
+	private function cleanupHtmlForMpdf(string $html): string
 	{
-		$options = $this->domOptions;
+		$dom = new DOMDocument();
+		$libxml = LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD | LIBXML_NOERROR | LIBXML_NOWARNING;
+		// XML declaration with explicit encoding is the documented workaround for libxml's
+		// Latin-1 default since PHP 8.2 deprecated `mb_convert_encoding(..., 'HTML-ENTITIES', ...)`.
+		$dom->loadHTML('<?xml encoding="UTF-8" ?>' . $html, $libxml);
 
-		if (empty($options)) {
-			$options = [
-				'removeStyles' => FALSE
-			];
+		// iterator_to_array snapshot because removeChild mutates the live NodeList during iteration
+		foreach (iterator_to_array($dom->getElementsByTagName('style')) as $el) {
+			$el->parentNode?->removeChild($el);
 		}
 
-		$dom = new Dom();
-		$dom->setOptions($options);
-
-		return $dom;
+		// strip the XML processing instruction we injected for UTF-8 hinting (saveHTML emits it back -
+		// sometimes with the closing token, sometimes without depending on libxml version, hence the
+		// lenient regex covers both forms)
+		$out = (string) $dom->saveHTML();
+		return preg_replace('~<\?xml\b[^>]*\?>\s*|<\?xml\b[^>]*>\s*~', '', $out, 1) ?? $out;
 	}
 }
