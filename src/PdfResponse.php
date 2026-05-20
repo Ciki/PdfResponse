@@ -18,6 +18,7 @@ namespace PdfResponse;
 
 use DOMDocument;
 use Mpdf\Mpdf;
+use Nette\Application\UI\Template;
 use Nette\Http\IRequest;
 use Nette\Http\IResponse;
 use Nette\Utils\Strings;
@@ -25,9 +26,9 @@ use Nette\Utils\Strings;
 class PdfResponse implements \Nette\Application\Response
 {
 	/**
-	 * Source data
+	 * Source HTML string or Nette template
 	 */
-	private mixed $source;
+	private string|Template $source;
 
 	/**
 	 * HTML pre-processing options used when `ignoreStylesInHTMLDocument = true`.
@@ -274,55 +275,35 @@ class PdfResponse implements \Nette\Application\Response
 		return $marginsOut;
 	}
 
-	/**
-	 * PdfResponse constructor.
-	 * @param $source mixed Source document
-	 */
-	public function __construct($source)
+	public function __construct(string|Template $source)
 	{
-		$this->createMPDF = array($this, 'createMPDF');
+		$this->createMPDF = [$this, 'createMPDF'];
 		$this->source = $source;
 	}
 
 
-	function openPrintDialog(): void
+	public function openPrintDialog(): void
 	{
 		$this->getMPDF()->SetJS('print()');
 	}
 
 	/**
-	 * Getts source document html
-	 * @return string
-	 * @throws \Nette\InvalidStateException
+	 * Returns rendered HTML for the configured source. Nette templates are rendered with
+	 * `$pdfResponse` and `$mPDF` injected as template parameters.
 	 */
 	public function getSource(): string
 	{
-		$source = $this->getRawSource();
-
-		// String given
-		if (is_string($source)) {
-			return $source;
-		};
-
-		// Nette template given
-		if ($source instanceof \Nette\Application\UI\ITemplate) {
-			$source->pdfResponse = $this;
-			$source->mPDF = $this->getMPDF();
-			return (string) $source;
-		};
-
-		// Other case - not supported
-		throw new \Nette\InvalidStateException('Source is not supported! (type: ' .
-			(is_object($source) ? ('object of class ' . get_class($source)) : gettype($source)) .
-			')');
-	}
-
-	public function getRawSource(): mixed
-	{
-		if (!$this->source) {
-			throw new \Nette\InvalidStateException('Source is not defined!');
+		if (is_string($this->source)) {
+			return $this->source;
 		}
 
+		$this->source->pdfResponse = $this;
+		$this->source->mPDF = $this->getMPDF();
+		return (string) $this->source;
+	}
+
+	public function getRawSource(): string|Template
+	{
 		return $this->source;
 	}
 
