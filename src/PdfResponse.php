@@ -18,7 +18,7 @@ namespace PdfResponse;
 
 use DOMDocument;
 use Mpdf\Mpdf;
-use Nette\Application\UI\Template;
+use Nette\Bridges\ApplicationLatte\Template;
 use Nette\Http\IRequest;
 use Nette\Http\IResponse;
 use Nette\Utils\Strings;
@@ -276,7 +276,7 @@ class PdfResponse implements \Nette\Application\Response
 
 	/**
 	 * Returns rendered HTML for the configured source. Nette templates are rendered with
-	 * `$pdfResponse` and `$mPDF` injected as template parameters.
+	 * `$pdfResponse` and `$mPDF` provided as template parameters.
 	 */
 	public function getSource(): string
 	{
@@ -284,9 +284,10 @@ class PdfResponse implements \Nette\Application\Response
 			return $this->source;
 		}
 
-		$this->source->pdfResponse = $this;
-		$this->source->mPDF = $this->getMPDF();
-		return (string) $this->source;
+		return $this->source->renderToString(null, [
+			'pdfResponse' => $this,
+			'mPDF' => $this->getMPDF(),
+		]);
 	}
 
 	public function getRawSource(): string|Template
@@ -319,9 +320,9 @@ class PdfResponse implements \Nette\Application\Response
 		if ($this->ignoreStylesInHTMLDocument) {
 
 			// copied from mPDF -> removes comments
-			$html = preg_replace('/<!--mpdf/i', '', $html);
-			$html = preg_replace('/mpdf-->/i', '', $html);
-			$html = preg_replace('/<\!\-\-.*?\-\->/s', '', $html);
+			$html = Strings::replace($html, '/<!--mpdf/i', '');
+			$html = Strings::replace($html, '/mpdf-->/i', '');
+			$html = Strings::replace($html, '/<\!\-\-.*?\-\->/s', '');
 
 			// deletes all <style> tags (and other configured cleanups) via native DOMDocument
 			$html = $this->cleanupHtmlForMpdf($html);
