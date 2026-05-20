@@ -34,13 +34,34 @@ class PdfResponse implements \Nette\Application\Response
 	private mixed $source;
 
 	/**
-	 * Reserved for forward-compatibility with the upcoming DOMDocument-cleanup options.
-	 * Currently no keys are recognized; the array is accepted as-is for BC with the
-	 * previous paquettg-based code path that passed it to PHPHtmlParser\Dom::setOptions().
+	 * HTML pre-processing options used when `ignoreStylesInHTMLDocument = true`.
+	 *
+	 * BC NOTE (BREAKING CHANGE from the paquettg-based version): the paquettg-only tokenizer knobs
+	 * `whitespaceTextNode`, `strict`, `cleanupInput`, `removeDoubleSpace`,
+	 * `preserveLineBreaksAfterClosingTag` are no longer accepted - native DOMDocument has no
+	 * equivalent. Passing any of them now throws InvalidArgumentException (was silently passed
+	 * through to paquettg's tokenizer). Rationale: fail at composer-update time on the dev box
+	 * rather than silently misbehave for the client. Strip them from $domOptions before calling
+	 * send() to migrate.
+	 *
+	 *  - removeStyles (bool, default TRUE)    strip <style> elements (always-stripped net effect
+	 *                                          of the prior code path is preserved)
+	 *  - enforceEncoding (?string, null)      encoding hint prepended as `<?xml encoding="..." ?>`
+	 *                                          before loadHTML(); null = UTF-8
+	 *  - preserveLineBreaks (bool, false)     keep \n in serialized output (preserveWhiteSpace)
+	 *  - libxml (int, sane defaults)          extra libxml flags OR'd into loadHTML() options
 	 *
 	 * @var array<string,mixed>
 	 */
 	public array $domOptions = [];
+
+	/** @var array<string,mixed> defaults applied when $domOptions is missing a key */
+	private const array DOM_OPTION_DEFAULTS = [
+		'removeStyles' => true,
+		'enforceEncoding' => null,
+		'preserveLineBreaks' => false,
+		'libxml' => LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD | LIBXML_NOERROR | LIBXML_NOWARNING,
+	];
 
 
 	/**
@@ -417,28 +438,31 @@ class PdfResponse implements \Nette\Application\Response
 
 
 	/**
-	 * Strip <style> elements from an HTML fragment via native PHP DOMDocument.
+	 * Apply $domOptions and strip <style> elements from an HTML fragment via native PHP DOMDocument.
 	 *
 	 * Migrated from paquettg/php-html-parser - the previous code path parsed via
 	 * `(new Dom())->setOptions($domOptions)->loadStr($html)` and then ran a `find('style')` loop
-	 * to remove <style> elements. This method preserves the exact same net effect using only
-	 * built-in PHP (no third-party dep).
+	 * to remove <style> elements. This method preserves the same net effect plus a documented
+	 * subset of options - see $domOptions docblock for the recognized keys.
 	 *
-	 * Removing the paquettg dep also unpins guzzlehttp/psr7 to ^2.7+ for downstream consumers
-	 * (paquettg/php-html-parser required psr7 ^1.6, which triggers PHP 8.5 implicit-nullable-param
-	 * deprecation warnings on class load).
+	 * @throws \InvalidArgumentException when $domOptions contains an unrecognized key
 	 */
 	private function cleanupHtmlForMpdf(string $html): string
 	{
+		$opts = $this->resolveDomOptions();
+
+		$encoding = $opts['enforceEncoding'] ?? 'UTF-8';
 		$dom = new DOMDocument();
-		$libxml = LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD | LIBXML_NOERROR | LIBXML_NOWARNING;
+		$dom->preserveWhiteSpace = $opts['preserveLineBreaks'] === true;
 		// XML declaration with explicit encoding is the documented workaround for libxml's
 		// Latin-1 default since PHP 8.2 deprecated `mb_convert_encoding(..., 'HTML-ENTITIES', ...)`.
-		$dom->loadHTML('<?xml encoding="UTF-8" ?>' . $html, $libxml);
+		$dom->loadHTML('<?xml encoding="' . htmlspecialchars($encoding, ENT_QUOTES) . '" ?>' . $html, (int) $opts['libxml']);
 
-		// iterator_to_array snapshot because removeChild mutates the live NodeList during iteration
-		foreach (iterator_to_array($dom->getElementsByTagName('style')) as $el) {
-			$el->parentNode?->removeChild($el);
+		if ($opts['removeStyles']) {
+			// iterator_to_array snapshot because removeChild mutates the live NodeList during iteration
+			foreach (iterator_to_array($dom->getElementsByTagName('style')) as $el) {
+				$el->parentNode?->removeChild($el);
+			}
 		}
 
 		// strip the XML processing instruction we injected for UTF-8 hinting (saveHTML emits it back -
@@ -446,5 +470,24 @@ class PdfResponse implements \Nette\Application\Response
 		// lenient regex covers both forms)
 		$out = (string) $dom->saveHTML();
 		return preg_replace('~<\?xml\b[^>]*\?>\s*|<\?xml\b[^>]*>\s*~', '', $out, 1) ?? $out;
+	}
+
+
+	/**
+	 * Merge user-supplied $domOptions onto DOM_OPTION_DEFAULTS and reject unrecognized keys.
+	 *
+	 * @return array<string,mixed>
+	 * @throws \InvalidArgumentException when an unrecognized option key is present
+	 */
+	private function resolveDomOptions(): array
+	{
+		$unknown = array_diff(array_keys($this->domOptions), array_keys(self::DOM_OPTION_DEFAULTS));
+		if ($unknown !== []) {
+			throw new \InvalidArgumentException(
+				'Unknown PdfResponse domOptions key(s): ' . implode(', ', $unknown)
+				. '. Supported keys: ' . implode(', ', array_keys(self::DOM_OPTION_DEFAULTS)),
+			);
+		}
+		return array_replace(self::DOM_OPTION_DEFAULTS, $this->domOptions);
 	}
 }
