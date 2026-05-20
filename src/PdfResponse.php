@@ -49,11 +49,11 @@ class PdfResponse implements \Nette\Application\Response
 	 *  - preserveLineBreaks (bool, false)     keep \n in serialized output (preserveWhiteSpace)
 	 *  - libxml (int, sane defaults)          extra libxml flags OR'd into loadHTML() options
 	 *
-	 * @var array<string,mixed>
+	 * @var array{removeStyles?:bool,enforceEncoding?:?string,preserveLineBreaks?:bool,libxml?:int}
 	 */
 	public array $domOptions = [];
 
-	/** @var array<string,mixed> defaults applied when $domOptions is missing a key */
+	/** @var array{removeStyles:bool,enforceEncoding:?string,preserveLineBreaks:bool,libxml:int} defaults applied when $domOptions is missing a key */
 	private const array DOM_OPTION_DEFAULTS = [
 		'removeStyles' => true,
 		'enforceEncoding' => null,
@@ -316,7 +316,7 @@ class PdfResponse implements \Nette\Application\Response
 	public function send(IRequest $httpRequest, IResponse $httpResponse): void
 	{
 		$mpdf = $this->buildMpdfDocument();
-		if (!$this->outputName) {
+		if ($this->outputName === null || $this->outputName === '') {
 			$this->outputName = Strings::webalize($this->documentTitle) . '.pdf';
 		}
 		$mpdf->Output($this->outputName, $this->outputDestination);
@@ -328,7 +328,11 @@ class PdfResponse implements \Nette\Application\Response
 	 */
 	public function toString(): string
 	{
-		return (string) $this->buildMpdfDocument()->Output('', self::OUTPUT_STRING);
+		$result = $this->buildMpdfDocument()->Output('', self::OUTPUT_STRING);
+		if (!is_string($result)) {
+			throw new \Nette\InvalidStateException('Mpdf::Output() did not return a string in OUTPUT_STRING mode.');
+		}
+		return $result;
 	}
 
 	/**
@@ -342,7 +346,7 @@ class PdfResponse implements \Nette\Application\Response
 		$html = $this->getSource();
 
 		// Fix: $html can't be empty (mPDF generates Fatal error)
-		if (empty($html)) {
+		if ($html === '') {
 			$html = '<html><body></body></html>';
 		}
 
@@ -374,7 +378,7 @@ class PdfResponse implements \Nette\Application\Response
 		$mpdf->WriteHTML($html, $mode);
 
 		// Add styles
-		if (!empty($this->styles)) {
+		if ($this->styles !== '') {
 			$mpdf->WriteHTML($this->styles, 1);
 		}
 
@@ -443,10 +447,10 @@ class PdfResponse implements \Nette\Application\Response
 
 		$encoding = $opts['enforceEncoding'] ?? 'UTF-8';
 		$dom = new DOMDocument();
-		$dom->preserveWhiteSpace = $opts['preserveLineBreaks'] === true;
+		$dom->preserveWhiteSpace = $opts['preserveLineBreaks'];
 		// XML declaration with explicit encoding is the documented workaround for libxml's
 		// Latin-1 default since PHP 8.2 deprecated `mb_convert_encoding(..., 'HTML-ENTITIES', ...)`.
-		$dom->loadHTML('<?xml encoding="' . htmlspecialchars($encoding, ENT_QUOTES) . '" ?>' . $html, (int) $opts['libxml']);
+		$dom->loadHTML('<?xml encoding="' . htmlspecialchars($encoding, ENT_QUOTES) . '" ?>' . $html, $opts['libxml']);
 
 		if ($opts['removeStyles']) {
 			// iterator_to_array snapshot because removeChild mutates the live NodeList during iteration
@@ -466,7 +470,7 @@ class PdfResponse implements \Nette\Application\Response
 	/**
 	 * Merge user-supplied $domOptions onto DOM_OPTION_DEFAULTS and reject unrecognized keys.
 	 *
-	 * @return array<string,mixed>
+	 * @return array{removeStyles:bool,enforceEncoding:?string,preserveLineBreaks:bool,libxml:int}
 	 * @throws \InvalidArgumentException when an unrecognized option key is present
 	 */
 	private function resolveDomOptions(): array

@@ -55,7 +55,9 @@ This is the first stable release. It modernizes the codebase for PHP 8.3+, drops
   - `enforceEncoding` (?string, default `null` ⇒ UTF-8)
   - `preserveLineBreaks` (bool, default `false`)
   - `libxml` (int, sane defaults)
-- PHPStan analysis at level 8.
+- PHPStan analysis at level 10 (max) with `phpstan-strict-rules` and
+  `phpstan-deprecation-rules` enabled - catches mixed casts, `empty()` on strings,
+  loose `if` conditions, and pings on future Mpdf/Nette `@deprecated` calls.
 - GitHub Actions CI matrix for PHP 8.3 / 8.4 / 8.5.
 - Regression tests for `<style>`/`<script>` cleanup behavior, unknown `$domOptions` key
   rejection, empty source acceptance, and `$pageMargins` validation.

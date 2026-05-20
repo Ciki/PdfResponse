@@ -33,6 +33,8 @@
 	"require-dev": {
 		"nette/tester": "^2.5",
 		"phpstan/phpstan": "^2.1",
-		"latte/latte": "^3.0.18"
+		"latte/latte": "^3.0.18",
+		"phpstan/phpstan-strict-rules": "^2.0",
+		"phpstan/phpstan-deprecation-rules": "^2.0"
 	}
 }
