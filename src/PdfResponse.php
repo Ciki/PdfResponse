@@ -9,8 +9,8 @@ declare(strict_types=1);
  * Generate PDF from Nette Framework in one line.
  *
  * @copyright  Copyright (c) 2010 Jan Kuchař (http://mujserver.net)
- * @license    LGPL
- * @link       http://addons.nettephp.com/cs/pdfresponse
+ * @license    LGPL-3.0-or-later
+ * @link       https://github.com/Ciki/PdfResponse
  */
 
 namespace PdfResponse;
