@@ -32,3 +32,10 @@ $response2 = new \PdfResponse\PdfResponse($html);
 $response2->domOptions = ['removeStyles' => false];
 $out2 = $ref->invoke($response2, $html);
 Assert::true(str_contains($out2, '<style>'), 'removeStyles=false preserves <style>');
+
+// E2E: send() with ignoreStylesInHTMLDocument=true must produce a valid PDF
+// (covers the send() branch that invokes the cleanup + mPDF mode=2 path)
+ob_start();
+$response->send(fakeHttpRequest(), fakeHttpResponse());
+$pdf = (string) ob_get_clean();
+assertValidPDF($pdf);

@@ -32,6 +32,7 @@
 	},
 	"require-dev": {
 		"nette/tester": "^2.5",
-		"phpstan/phpstan": "^2.1"
+		"phpstan/phpstan": "^2.1",
+		"latte/latte": "^3.0.18"
 	}
 }
