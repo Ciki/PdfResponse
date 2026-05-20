@@ -265,7 +265,7 @@ class PdfResponse implements \Nette\Application\Response
 
 	public function __construct(string|Template $source)
 	{
-		$this->createMPDF = \Closure::fromCallable([$this, 'createMPDF']);
+		$this->createMPDF = \Closure::fromCallable([$this, 'defaultMpdfFactory']);
 		$this->source = $source;
 	}
 
@@ -312,14 +312,24 @@ class PdfResponse implements \Nette\Application\Response
 	/**
 	 * Sends the response to the current output (per `$outputDestination`).
 	 * Called automatically by Nette when this is returned from a presenter.
+	 *
+	 * Setting `$outputDestination = OUTPUT_STRING` here is a programming error - the PDF
+	 * string would be discarded since send() has no return value. Use {@see toString()} instead.
 	 */
 	public function send(IRequest $httpRequest, IResponse $httpResponse): void
 	{
-		$mpdf = $this->buildMpdfDocument();
-		if ($this->outputName === null || $this->outputName === '') {
-			$this->outputName = Strings::webalize($this->documentTitle) . '.pdf';
+		if ($this->outputDestination === self::OUTPUT_STRING) {
+			throw new \LogicException(
+				'outputDestination=OUTPUT_STRING is not usable through send() because the '
+				. 'string is discarded. Call toString() instead to receive the PDF as a string.',
+			);
 		}
-		$mpdf->Output($this->outputName, $this->outputDestination);
+
+		$outputName = $this->outputName ?? '';
+		if ($outputName === '') {
+			$outputName = Strings::webalize($this->documentTitle) . '.pdf';
+		}
+		$this->buildMpdfDocument()->Output($outputName, $this->outputDestination);
 	}
 
 	/**
@@ -405,9 +415,14 @@ class PdfResponse implements \Nette\Application\Response
 
 
 	/**
-	 * Creates and returns mPDF object
+	 * Default Mpdf factory used when `$createMPDF` is not overridden. Public so user code
+	 * can wrap/decorate it (e.g. `$response->createMPDF = function () use ($response) {
+	 *     $mpdf = $response->defaultMpdfFactory();
+	 *     $mpdf->SetWatermarkText('DRAFT');
+	 *     return $mpdf;
+	 * };`).
 	 */
-	public function createMPDF(): Mpdf
+	public function defaultMpdfFactory(): Mpdf
 	{
 		$margins = $this->getMargins();
 		$config = [

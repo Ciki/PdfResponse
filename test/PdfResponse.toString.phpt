@@ -18,6 +18,15 @@ use Tester\Assert;
 $response = new \PdfResponse\PdfResponse('<h1>toString() test</h1>');
 assertValidPDF($response->toString());
 
+// send() with OUTPUT_STRING must refuse - the string would be discarded
+$response3 = new \PdfResponse\PdfResponse('<p>x</p>');
+$response3->outputDestination = \PdfResponse\PdfResponse::OUTPUT_STRING;
+Assert::exception(
+	fn() => $response3->send(fakeHttpRequest(), fakeHttpResponse()),
+	\LogicException::class,
+	'~OUTPUT_STRING is not usable through send.+Call toString~',
+);
+
 // defensive guard: a broken Mpdf that doesn't return string in 'S' mode must throw
 $response2 = new \PdfResponse\PdfResponse('<p>x</p>');
 $response2->createMPDF = fn(): \Mpdf\Mpdf => new class(['mode' => 'utf-8']) extends \Mpdf\Mpdf {
