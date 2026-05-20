@@ -1,5 +1,10 @@
 # PdfResponse
 
+[![CI](https://github.com/Ciki/PdfResponse/actions/workflows/ci.yml/badge.svg)](https://github.com/Ciki/PdfResponse/actions/workflows/ci.yml)
+[![Latest Stable Version](https://poser.pugx.org/jkuchar/pdfresponse/v/stable)](https://packagist.org/packages/jkuchar/pdfresponse)
+[![PHP Version Require](https://poser.pugx.org/jkuchar/pdfresponse/require/php)](https://packagist.org/packages/jkuchar/pdfresponse)
+[![License](https://poser.pugx.org/jkuchar/pdfresponse/license)](https://packagist.org/packages/jkuchar/pdfresponse)
+
 Generate a PDF from an HTML string or Nette template, ready to ship as a
 `Nette\Application\Response`. Wraps [`mPDF`](https://github.com/mpdf/mpdf).
 

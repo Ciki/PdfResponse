@@ -3,4 +3,5 @@
 /.idea
 /composer.lock
 /.project
+/temp
 test/**/*.output.pdf

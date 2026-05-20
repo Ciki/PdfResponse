@@ -5,17 +5,41 @@
 	"scripts": {
 		"verify": [
 			"@phpstan",
+			"@ecs",
+			"@rector",
 			"@tester"
 		],
 		"tester": "vendor/bin/tester test",
-		"phpstan": "vendor/bin/phpstan analyze -c phpstan.neon --memory-limit 1G"
+		"phpstan": "vendor/bin/phpstan analyze -c phpstan.neon --memory-limit 1G",
+		"ecs": "vendor/bin/ecs check --ansi",
+		"ecs-fix": "vendor/bin/ecs check --fix --ansi",
+		"rector": "vendor/bin/rector process --dry-run --ansi",
+		"rector-fix": "vendor/bin/rector process --ansi"
 	},
 	"authors": [
 		{
 			"name": "Jan Kuchař",
-			"homepage": "http://www.jankuchar.cz"
+			"homepage": "http://www.jankuchar.cz",
+			"role": "Original author"
+		},
+		{
+			"name": "Ciki",
+			"homepage": "https://github.com/Ciki",
+			"role": "Maintainer"
 		}
 	],
+	"archive": {
+		"exclude": [
+			"/.editorconfig",
+			"/.github",
+			"/.gitignore",
+			"/.travis.yml",
+			"/ecs.php",
+			"/phpstan.neon",
+			"/rector.php",
+			"/test"
+		]
+	},
 	"autoload": {
 		"psr-4": {
 			"PdfResponse\\": "src"
@@ -33,8 +57,10 @@
 	"require-dev": {
 		"nette/tester": "^2.5",
 		"phpstan/phpstan": "^2.1",
-		"latte/latte": "^3.0.18",
 		"phpstan/phpstan-strict-rules": "^2.0",
-		"phpstan/phpstan-deprecation-rules": "^2.0"
+		"phpstan/phpstan-deprecation-rules": "^2.0",
+		"latte/latte": "^3.0.18",
+		"symplify/easy-coding-standard": "^13.0",
+		"rector/rector": "^2.0"
 	}
 }
