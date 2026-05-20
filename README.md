@@ -77,7 +77,7 @@ All settings are public properties on the `PdfResponse` instance.
 | `ignoreStylesInHTMLDocument` | `bool`              | `false`                              | If `true`, the input HTML is cleaned via DOMDocument before mPDF gets it.    |
 | `domOptions`                 | `array`             | `[]`                                 | Cleanup knobs (see below); only consulted when `ignoreStylesInHTMLDocument`. |
 | `tempDir`                    | `?string`           | `null` (mPDF default)                | mPDF working directory.                                                      |
-| `createMPDF`                 | `?\Closure`         | factory using the settings above     | Replace to construct mPDF yourself.                                          |
+| `mpdfFactory`                | `?\Closure`         | bound to `createMPDF()` default      | Replace to construct mPDF yourself.                                          |
 | `onBeforeWrite`              | `?\Closure`         | `null`                               | Hook fired right before `Mpdf::WriteHTML()`.                                 |
 | `onBeforeComplete`           | `?\Closure`         | `null`                               | Hook fired right before `Mpdf::Output()`.                                    |
 

@@ -29,7 +29,7 @@ Assert::exception(
 
 // defensive guard: a broken Mpdf that doesn't return string in 'S' mode must throw
 $response2 = new \PdfResponse\PdfResponse('<p>x</p>');
-$response2->createMPDF = fn(): \Mpdf\Mpdf => new class(['mode' => 'utf-8']) extends \Mpdf\Mpdf {
+$response2->mpdfFactory = fn(): \Mpdf\Mpdf => new class(['mode' => 'utf-8']) extends \Mpdf\Mpdf {
 	public function Output($name = '', $dest = ''): int
 	{
 		return 42; // intentionally wrong type

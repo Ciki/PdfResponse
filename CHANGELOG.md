@@ -39,9 +39,12 @@ This is the first stable release. It modernizes the codebase for PHP 8.3+, drops
   $response->pageMargins = ['top' => 16, 'right' => 15, 'bottom' => 16,
       'left' => 15, 'header' => 9, 'footer' => 9];
   ```
-- Callback properties (`$createMPDF`, `$onBeforeWrite`, `$onBeforeComplete`) are typed
-  `?\Closure`. To assign a method callable, wrap it:
-  `\Closure::fromCallable([$obj, 'method'])`.
+- Callback properties (`$mpdfFactory`, `$onBeforeWrite`, `$onBeforeComplete`) are typed
+  `?\Closure`. To assign a method callable, wrap it via first-class callable syntax:
+  `$obj->method(...)` (or `\Closure::fromCallable([$obj, 'method'])`).
+- The Mpdf factory closure property `$createMPDF` was renamed to `$mpdfFactory`
+  (the method `createMPDF()` keeps its historical name and is what the default closure
+  is bound to - public so user code can decorate it from a custom `$mpdfFactory`).
 - `getRawSource()` return type is now `string | Template` (was `mixed`).
 - `getMargins()` is now `public` (was implicitly public via no-modifier, but is part of
   the documented contract).

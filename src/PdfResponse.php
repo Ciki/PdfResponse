@@ -62,9 +62,9 @@ class PdfResponse implements Response
 
 	/**
 	 * Factory for the underlying Mpdf instance. Replaced if you need custom Mpdf config.
-	 * Defaults to {@see self::defaultMpdfFactory()} (wrapped via Closure::fromCallable in the constructor).
+	 * Defaults to {@see self::createMPDF()} bound as a first-class callable in the constructor.
 	 */
-	public ?Closure $createMPDF = null;
+	public ?Closure $mpdfFactory = null;
 
 	/**
 	 * Portrait page orientation
@@ -265,7 +265,7 @@ class PdfResponse implements Response
 		 */
 		private readonly string|Template $source,
 	) {
-		$this->createMPDF = $this->defaultMpdfFactory(...);
+		$this->mpdfFactory = $this->createMPDF(...);
 	}
 
 	public function openPrintDialog(): void
@@ -396,12 +396,12 @@ class PdfResponse implements Response
 	public function getMPDF(): Mpdf
 	{
 		if (!$this->mPDF instanceof Mpdf) {
-			if ($this->createMPDF === null) {
-				throw new InvalidStateException('createMPDF closure is not set!');
+			if ($this->mpdfFactory === null) {
+				throw new InvalidStateException('mpdfFactory closure is not set!');
 			}
-			$mpdf = ($this->createMPDF)();
+			$mpdf = ($this->mpdfFactory)();
 			if (!$mpdf instanceof Mpdf) {
-				throw new InvalidStateException('createMPDF closure must return an Mpdf instance!');
+				throw new InvalidStateException('mpdfFactory closure must return an Mpdf instance!');
 			}
 			$this->mPDF = $mpdf;
 		}
@@ -409,14 +409,14 @@ class PdfResponse implements Response
 	}
 
 	/**
-	 * Default Mpdf factory used when `$createMPDF` is not overridden. Public so user code
-	 * can wrap/decorate it (e.g. `$response->createMPDF = function () use ($response) {
-	 *     $mpdf = $response->defaultMpdfFactory();
+	 * Default Mpdf factory used when `$mpdfFactory` is not overridden. Public so user code
+	 * can wrap/decorate it (e.g. `$response->mpdfFactory = function () use ($response) {
+	 *     $mpdf = $response->createMPDF();
 	 *     $mpdf->SetWatermarkText('DRAFT');
 	 *     return $mpdf;
 	 * };`).
 	 */
-	public function defaultMpdfFactory(): Mpdf
+	public function createMPDF(): Mpdf
 	{
 		$margins = $this->getMargins();
 		$config = [
