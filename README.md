@@ -1,38 +1,88 @@
-PdfResponse
-===========
+# PdfResponse
 
-[![Code Climate](https://codeclimate.com/github/jkuchar/PdfResponse/badges/gpa.svg)](https://codeclimate.com/github/jkuchar/PdfResponse)
+Generate a PDF from an HTML string or Nette template, ready to ship as a
+`Nette\Application\Response`. Wraps [`mPDF`](https://github.com/mpdf/mpdf).
 
-Project that generates PDF from HTML template. Project can be integrated into Nette-based project as Nette\Application\IResponse.
+## Requirements
 
-- Project example - https://github.com/jkuchar/PdfResponse-example
-- Packagist - https://packagist.org/packages/jkuchar/pdfresponse-example
-- Live demo - http://projekty.mujserver.net/nette/PdfResponse/document_root/
+- PHP 8.3 - 8.5
+- `ext-dom`, `ext-libxml`
+- `nette/application ^3.1`, `nette/http ^3.2`, `nette/utils ^4.0`
+- `mpdf/mpdf ^8.0`
 
-Installing example
-------------------
+## Installation
 
-See [PdfResponse-example][] repositary.
+```bash
+composer require jkuchar/pdfresponse:^1.0
+```
 
-Installation into existing project using Composer
--------------------------------------------------
-1. Open terminal in your project directory
-2. Type `composer require jkuchar/pdfresponse:dev-master`
-3. You are done!
+## Usage
 
-How to use this project?
-------------------------
-Have a look at [PdfResponse-example][] in HomepagePresenter.
+### From an HTML string
 
-Full documentation
-------------------
-- Czech: http://addons.nette.org/cs/pdfresponse
-- English: http://addons.nette.org/en/pdfresponse (machine translation)
+```php
+$html = '<h1>Invoice</h1><p>Total: 42 EUR</p>';
+$response = new \PdfResponse\PdfResponse($html);
+$response->documentTitle = 'invoice-2026-001';
+return $response;
+```
 
-Other forks
------------
-Because this project is imported from original SVN repo, on github are [forks][] that are not connected with this repo.
+### From a Nette template
 
+```php
+$template = $this->createTemplate();
+$template->setFile(__DIR__ . '/templates/invoice.latte');
+$template->order = $this->order;
 
-[PdfResponse-example]: https://github.com/jkuchar/PdfResponse-example
-[forks]: https://github.com/Edke/PdfResponse/network/members
+$response = new \PdfResponse\PdfResponse($template);
+$response->documentTitle = 'invoice-' . $this->order->getNumber();
+return $response;
+```
+
+Inside the Latte template you can use `{$pdfResponse}` (the response instance) and
+`{$mPDF}` (the underlying mPDF instance) - both are injected automatically.
+
+## Configuration
+
+All settings are public properties on the `PdfResponse` instance.
+
+| Property                     | Type                | Default                              | Description                                                                  |
+| ---------------------------- | ------------------- | ------------------------------------ | ---------------------------------------------------------------------------- |
+| `pageOrientation`            | `string`            | `'P'` (portrait)                     | Use the `ORIENTATION_PORTRAIT` / `ORIENTATION_LANDSCAPE` constants.          |
+| `pageFormat`                 | `string`            | `'A4'`                               | Any mPDF page size: `A0`-`A10`, `Letter`, `Legal`, etc.                      |
+| `pageMargins`                | `array`             | `['top'=>16,'right'=>15,...]`        | Margins in mm. All six sides required: top, right, bottom, left, header, footer. |
+| `documentTitle`              | `string`            | `'Unnamed document'`                 | PDF document title; also used as the download filename (webalized).          |
+| `documentAuthor`             | `string`            | `'Nette Framework - Pdf response'`   | PDF metadata.                                                                |
+| `displayZoom`                | `string \| int`     | `'default'`                          | `'fullpage'`, `'fullwidth'`, `'real'`, `'default'`, or zoom percentage.      |
+| `displayLayout`              | `string`            | `'continuous'`                       | `'single'`, `'continuous'`, `'two'`, or `'default'`.                         |
+| `outputDestination`          | `string`            | `OUTPUT_INLINE` (`'I'`)              | Where the PDF goes: inline, download, file, string.                          |
+| `outputName`                 | `?string`           | derived from `documentTitle`         | Filename for `OUTPUT_DOWNLOAD` / `OUTPUT_FILE`.                              |
+| `multiLanguage`              | `bool`              | `false`                              | Sets `Mpdf::$biDirectional`.                                                 |
+| `styles`                     | `string`            | `''`                                 | Extra CSS appended via a second `WriteHTML()` call.                          |
+| `ignoreStylesInHTMLDocument` | `bool`              | `false`                              | If `true`, the input HTML is cleaned via DOMDocument before mPDF gets it.    |
+| `domOptions`                 | `array`             | `[]`                                 | Cleanup knobs (see below); only consulted when `ignoreStylesInHTMLDocument`. |
+| `tempDir`                    | `?string`           | `null` (mPDF default)                | mPDF working directory.                                                      |
+| `createMPDF`                 | `?\Closure`         | factory using the settings above     | Replace to construct mPDF yourself.                                          |
+| `onBeforeWrite`              | `?\Closure`         | `null`                               | Hook fired right before `Mpdf::WriteHTML()`.                                 |
+| `onBeforeComplete`           | `?\Closure`         | `null`                               | Hook fired right before `Mpdf::Output()`.                                    |
+
+### `domOptions` keys
+
+Recognized when `ignoreStylesInHTMLDocument = true`. Unknown keys throw
+`InvalidArgumentException`.
+
+| Key                  | Type      | Default            | Effect                                                            |
+| -------------------- | --------- | ------------------ | ----------------------------------------------------------------- |
+| `removeStyles`       | `bool`    | `true`             | Strip `<style>` elements before handing the HTML to mPDF.         |
+| `enforceEncoding`    | `?string` | `null` (UTF-8)     | Encoding hint injected via `<?xml encoding="..." ?>`.             |
+| `preserveLineBreaks` | `bool`    | `false`            | Toggles `DOMDocument::$preserveWhiteSpace`.                       |
+| `libxml`             | `int`     | sane HTML defaults | Extra libxml flags passed to `loadHTML()`.                        |
+
+## Upgrading
+
+See [CHANGELOG.md](CHANGELOG.md) for the v1.0.0 BC breaks (typed `$source`, `$pageMargins`
+shape, dropped `SmartObject` magic, etc.).
+
+## License
+
+LGPL-2.0-or-later. See [LICENSE](LICENSE).
