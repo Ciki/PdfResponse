@@ -1,27 +1,39 @@
-<?php declare(strict_types=1);
+<?php
+
+declare(strict_types=1);
+
+use Nette\Http\Request;
+use Nette\Http\Response;
+use Nette\Http\UrlScript;
+use Tester\Assert;
+use Tester\Environment;
 
 require __DIR__ . '/../vendor/autoload.php';
 
-\Tester\Environment::setup();
+Environment::setup();
 
-function fakeHttpRequest() {
-	return new \Nette\Http\Request(
-		new \Nette\Http\UrlScript()
+function fakeHttpRequest(): Request
+{
+	return new Request(
+		new UrlScript(),
 	);
 }
 
-function fakeHttpResponse() {
-	return new \Nette\Http\Response();
+function fakeHttpResponse(): Response
+{
+	return new Response();
 }
 
 
-function assertValidPDF(string $data): void {
-	\Tester\Assert::true(
-		strpos($data, '%PDF') === 0,
-		'Have not found valid PDF file in generated output.'
+function assertValidPDF(string $data): void
+{
+	Assert::true(
+		str_starts_with($data, '%PDF'),
+		'Have not found valid PDF file in generated output.',
 	);
 }
 
-function savePDF(string $data, string $name): void {
+function savePDF(string $data, string $name): void
+{
 	file_put_contents($name . '.output.pdf', $data);
 }

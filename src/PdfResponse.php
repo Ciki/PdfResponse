@@ -8,7 +8,6 @@ declare(strict_types=1);
  * Wrapper of mPDF.
  * Generate PDF from Nette Framework in one line.
  *
- * @author     Jan Kuchař
  * @copyright  Copyright (c) 2010 Jan Kuchař (http://mujserver.net)
  * @license    LGPL
  * @link       http://addons.nettephp.com/cs/pdfresponse
@@ -16,21 +15,21 @@ declare(strict_types=1);
 
 namespace PdfResponse;
 
+use Closure;
 use DOMDocument;
+use InvalidArgumentException;
+use LogicException;
 use Mpdf\Mpdf;
+use Nette\Application\Response;
 use Nette\Application\UI\Template;
 use Nette\Bridges\ApplicationLatte\Template as LatteTemplate;
 use Nette\Http\IRequest;
 use Nette\Http\IResponse;
+use Nette\InvalidStateException;
 use Nette\Utils\Strings;
 
-class PdfResponse implements \Nette\Application\Response
+class PdfResponse implements Response
 {
-	/**
-	 * Source HTML string or Nette template
-	 */
-	private string|Template $source;
-
 	/**
 	 * HTML pre-processing options used when `ignoreStylesInHTMLDocument = true`.
 	 *
@@ -53,7 +52,7 @@ class PdfResponse implements \Nette\Application\Response
 	 */
 	public array $domOptions = [];
 
-	/** @var array{removeStyles:bool,enforceEncoding:?string,preserveLineBreaks:bool,libxml:int} defaults applied when $domOptions is missing a key */
+	/** @var array{removeStyles:bool,enforceEncoding:?string,preserveLineBreaks:bool,libxml:int} defaults applied when is missing a key */
 	private const array DOM_OPTION_DEFAULTS = [
 		'removeStyles' => true,
 		'enforceEncoding' => null,
@@ -61,23 +60,21 @@ class PdfResponse implements \Nette\Application\Response
 		'libxml' => LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD | LIBXML_NOERROR | LIBXML_NOWARNING,
 	];
 
-
 	/**
 	 * Factory for the underlying Mpdf instance. Replaced if you need custom Mpdf config.
-	 * Defaults to {@see self::createMPDF()} (wrapped via Closure::fromCallable in the constructor).
+	 * Defaults to {@see self::defaultMpdfFactory()} (wrapped via Closure::fromCallable in the constructor).
 	 */
-	public ?\Closure $createMPDF = null;
-
+	public ?Closure $createMPDF = null;
 
 	/**
 	 * Portrait page orientation
 	 */
-	const string ORIENTATION_PORTRAIT  = 'P';
+	public const string ORIENTATION_PORTRAIT = 'P';
 
 	/**
 	 * Landscape page orientation
 	 */
-	const string ORIENTATION_LANDSCAPE = 'L';
+	public const string ORIENTATION_LANDSCAPE = 'L';
 
 	/**
 	 * Specifies page orientation.
@@ -98,7 +95,6 @@ class PdfResponse implements \Nette\Application\Response
 	 * </pre>
 	 */
 	public string $pageOrientation = self::ORIENTATION_PORTRAIT;
-
 
 	/**
 	 * Specifies format of the document<br>
@@ -183,12 +179,12 @@ class PdfResponse implements \Nette\Application\Response
 	/**
 	 * Hook fired right before mPDF Output() is called.
 	 */
-	public ?\Closure $onBeforeComplete = null;
+	public ?Closure $onBeforeComplete = null;
 
 	/**
 	 * Hook fired right before mPDF WriteHTML() is called.
 	 */
-	public ?\Closure $onBeforeWrite = null;
+	public ?Closure $onBeforeWrite = null;
 
 	/**
 	 * Multi-language document?
@@ -201,8 +197,8 @@ class PdfResponse implements \Nette\Application\Response
 	public string $styles = '';
 
 	/**
-	 * <b>Ignore</b> styles in HTML document
-	 * When using this feature, you MUST also install SimpleHTMLDom to your application!
+	 * If true, the input HTML is pre-cleaned via native DOMDocument before being handed
+	 * to mPDF (currently strips `<style>` elements by default; see {@see $domOptions}).
 	 */
 	public bool $ignoreStylesInHTMLDocument = false;
 
@@ -219,22 +215,22 @@ class PdfResponse implements \Nette\Application\Response
 	/**
 	 * send the file inline to the browser. The plug-in is used if available. The name given by filename is used when one selects the "Save as" option on the link generating the PDF.
 	 */
-	const string OUTPUT_INLINE = 'I';
+	public const string OUTPUT_INLINE = 'I';
 
 	/**
 	 * send to the browser and force a file download with the name given by filename.
 	 */
-	const string OUTPUT_DOWNLOAD = 'D';
+	public const string OUTPUT_DOWNLOAD = 'D';
 
 	/**
 	 * save to a local file with the name given by filename (may include a path).
 	 */
-	const string OUTPUT_FILE = 'F';
+	public const string OUTPUT_FILE = 'F';
 
 	/**
 	 * return the document as a string. filename is ignored.
 	 */
-	const string OUTPUT_STRING = 'S';
+	public const string OUTPUT_STRING = 'S';
 
 	/**
 	 * Output destination
@@ -251,7 +247,7 @@ class PdfResponse implements \Nette\Application\Response
 		$expected = ['top', 'right', 'bottom', 'left', 'header', 'footer'];
 		$missing = array_diff($expected, array_keys($this->pageMargins));
 		if ($missing !== []) {
-			throw new \Nette\InvalidStateException('Missing pageMargins side(s): ' . implode(', ', $missing));
+			throw new InvalidStateException('Missing pageMargins side(s): ' . implode(', ', $missing));
 		}
 
 		foreach ($this->pageMargins as $side => $value) {
@@ -263,12 +259,14 @@ class PdfResponse implements \Nette\Application\Response
 		return $this->pageMargins;
 	}
 
-	public function __construct(string|Template $source)
-	{
-		$this->createMPDF = \Closure::fromCallable([$this, 'defaultMpdfFactory']);
-		$this->source = $source;
+	public function __construct(
+		/**
+		 * Source HTML string or Nette template
+		 */
+		private readonly string|Template $source,
+	) {
+		$this->createMPDF = $this->defaultMpdfFactory(...);
 	}
-
 
 	public function openPrintDialog(): void
 	{
@@ -307,8 +305,6 @@ class PdfResponse implements \Nette\Application\Response
 		return $this->source;
 	}
 
-
-
 	/**
 	 * Sends the response to the current output (per `$outputDestination`).
 	 * Called automatically by Nette when this is returned from a presenter.
@@ -319,7 +315,7 @@ class PdfResponse implements \Nette\Application\Response
 	public function send(IRequest $httpRequest, IResponse $httpResponse): void
 	{
 		if ($this->outputDestination === self::OUTPUT_STRING) {
-			throw new \LogicException(
+			throw new LogicException(
 				'outputDestination=OUTPUT_STRING is not usable through send() because the '
 				. 'string is discarded. Call toString() instead to receive the PDF as a string.',
 			);
@@ -340,7 +336,7 @@ class PdfResponse implements \Nette\Application\Response
 	{
 		$result = $this->buildMpdfDocument()->Output('', self::OUTPUT_STRING);
 		if (!is_string($result)) {
-			throw new \Nette\InvalidStateException('Mpdf::Output() did not return a string in OUTPUT_STRING mode.');
+			throw new InvalidStateException('Mpdf::Output() did not return a string in OUTPUT_STRING mode.');
 		}
 		return $result;
 	}
@@ -397,22 +393,20 @@ class PdfResponse implements \Nette\Application\Response
 		return $mpdf;
 	}
 
-
 	public function getMPDF(): Mpdf
 	{
 		if (!$this->mPDF instanceof Mpdf) {
 			if ($this->createMPDF === null) {
-				throw new \Nette\InvalidStateException('createMPDF closure is not set!');
+				throw new InvalidStateException('createMPDF closure is not set!');
 			}
 			$mpdf = ($this->createMPDF)();
 			if (!$mpdf instanceof Mpdf) {
-				throw new \Nette\InvalidStateException('createMPDF closure must return an Mpdf instance!');
+				throw new InvalidStateException('createMPDF closure must return an Mpdf instance!');
 			}
 			$this->mPDF = $mpdf;
 		}
 		return $this->mPDF;
 	}
-
 
 	/**
 	 * Default Mpdf factory used when `$createMPDF` is not overridden. Public so user code
@@ -445,7 +439,6 @@ class PdfResponse implements \Nette\Application\Response
 		return new Mpdf($config);
 	}
 
-
 	/**
 	 * Apply $domOptions and strip <style> elements from an HTML fragment via native PHP DOMDocument.
 	 *
@@ -454,7 +447,7 @@ class PdfResponse implements \Nette\Application\Response
 	 * to remove <style> elements. This method preserves the same net effect plus a documented
 	 * subset of options - see $domOptions docblock for the recognized keys.
 	 *
-	 * @throws \InvalidArgumentException when $domOptions contains an unrecognized key
+	 * @throws InvalidArgumentException when $domOptions contains an unrecognized key
 	 */
 	private function cleanupHtmlForMpdf(string $html): string
 	{
@@ -481,18 +474,17 @@ class PdfResponse implements \Nette\Application\Response
 		return preg_replace('~<\?xml\b[^>]*\?>\s*|<\?xml\b[^>]*>\s*~', '', $out, 1) ?? $out;
 	}
 
-
 	/**
 	 * Merge user-supplied $domOptions onto DOM_OPTION_DEFAULTS and reject unrecognized keys.
 	 *
 	 * @return array{removeStyles:bool,enforceEncoding:?string,preserveLineBreaks:bool,libxml:int}
-	 * @throws \InvalidArgumentException when an unrecognized option key is present
+	 * @throws InvalidArgumentException when an unrecognized option key is present
 	 */
 	private function resolveDomOptions(): array
 	{
 		$unknown = array_diff(array_keys($this->domOptions), array_keys(self::DOM_OPTION_DEFAULTS));
 		if ($unknown !== []) {
-			throw new \InvalidArgumentException(
+			throw new InvalidArgumentException(
 				'Unknown PdfResponse domOptions key(s): ' . implode(', ', $unknown)
 				. '. Supported keys: ' . implode(', ', array_keys(self::DOM_OPTION_DEFAULTS)),
 			);
