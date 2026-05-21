@@ -3,10 +3,7 @@
 declare(strict_types=1);
 
 /**
- * PdfResponse
- * -----------
- * Wrapper of mPDF.
- * Generate PDF from Nette Framework in one line.
+ * Wrapper of mPDF. Generates a PDF from a Nette template or HTML string in one line.
  *
  * @copyright  Copyright (c) 2010 Jan Kuchař (http://mujserver.net)
  * @license    LGPL-3.0-or-later
@@ -476,19 +473,27 @@ class PdfResponse implements Response
 
 	/**
 	 * Merge user-supplied $domOptions onto DOM_OPTION_DEFAULTS and reject unrecognized keys.
+	 * Returns the result with an exact shape (built field-by-field) so PHPStan can infer it
+	 * precisely on the lowest supported version (array_replace() loses the shape on phpstan ^2.1).
 	 *
 	 * @return array{removeStyles:bool,enforceEncoding:?string,preserveLineBreaks:bool,libxml:int}
 	 * @throws InvalidArgumentException when an unrecognized option key is present
 	 */
 	private function resolveDomOptions(): array
 	{
-		$unknown = array_diff(array_keys($this->domOptions), array_keys(self::DOM_OPTION_DEFAULTS));
+		$defaults = self::DOM_OPTION_DEFAULTS;
+		$unknown = array_diff(array_keys($this->domOptions), array_keys($defaults));
 		if ($unknown !== []) {
 			throw new InvalidArgumentException(
 				'Unknown PdfResponse domOptions key(s): ' . implode(', ', $unknown)
-				. '. Supported keys: ' . implode(', ', array_keys(self::DOM_OPTION_DEFAULTS)),
+				. '. Supported keys: ' . implode(', ', array_keys($defaults)),
 			);
 		}
-		return array_replace(self::DOM_OPTION_DEFAULTS, $this->domOptions);
+		return [
+			'removeStyles' => $this->domOptions['removeStyles'] ?? $defaults['removeStyles'],
+			'enforceEncoding' => $this->domOptions['enforceEncoding'] ?? $defaults['enforceEncoding'],
+			'preserveLineBreaks' => $this->domOptions['preserveLineBreaks'] ?? $defaults['preserveLineBreaks'],
+			'libxml' => $this->domOptions['libxml'] ?? $defaults['libxml'],
+		];
 	}
 }
